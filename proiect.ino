@@ -33,6 +33,9 @@ float maxValueForCold = 20;
 float minValueForMedium = 21;
 float maxValueForMedium = 30;
 float minValueForWarm = 31;
+unsigned long startMillisJoc3;
+unsigned long currentMillisJoc3;
+
 
 // for temp sensor and LCD
 #include <LiquidCrystal_I2C.h>
@@ -173,9 +176,26 @@ void lights_mode_2() {
 }
 
 void lights_mode_3(float tempValue) {
-  if (tempValue < maxValueForCold) {
+    currentMillisJoc3 = millis();
+    if (currentMillisJoc3 - startMillisJoc3 >= delayTime) {
+      startMillisJoc3 = currentMillisJoc3;
 
-  } else if (tempValue > minValueForMedium & tempValue <)
+      if (tempValue <= maxValueForCold) {
+        setLEDColor(1, 1, 1, 0);
+        setLEDColor(2, 1, 1, 0);
+        setLEDColor(3, 1, 1, 0);
+      }
+      else if(tempValue >= minValueForMedium && tempValue <= maxValueForMedium) {
+        setLEDColor(1, 0, 0, 1);
+        setLEDColor(2, 0, 0, 1);
+        setLEDColor(3, 0, 0, 1);
+      }
+      else {
+        setLEDColor(1, 0, 1, 1);
+        setLEDColor(2, 0, 1, 1);
+        setLEDColor(3, 0, 1, 1);
+      }
+    }
 }
 
 void loop() {
@@ -185,6 +205,8 @@ void loop() {
 
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
+
+  // lights_mode_3(temperature);
 
   if (humidity != humidity_prev_value || temperature != temp_prev_value) {
     lcd.clear();
@@ -199,53 +221,3 @@ void loop() {
   }
 
 }
-
-
-// #include <LiquidCrystal_I2C.h>
-// #include "DHT.h"
- 
-// #define DHTPIN 7
-// #define DHTTYPE DHT22
-// #define DELAY_TIME 50
- 
-// float humidity_prev_value = 0;
-// float temp_prev_value = 0;
- 
-// LiquidCrystal_I2C lcd(0x3F,16,2); 
-// DHT dht(DHTPIN, DHTTYPE);
- 
-// void setup()
-// {
-//   lcd.init();
-//   lcd.backlight();
-//   lcd.clear();
- 
-//   pinMode(DHTPIN, INPUT);
-//   pinMode(A3, INPUT);
-//   dht.begin();
-//   Serial.begin(9600);
-// }
- 
-// void loop()
-// {
-//   delay(DELAY_TIME);
- 
-//   float humidity = dht.readHumidity();
-//   float temperature = dht.readTemperature();
-//   // float temperature = analogRead(A3);
-
-//   if (humidity != humidity_prev_value || temperature != temp_prev_value) {
-//     lcd.clear();
-//     lcd.print("Temp: " + String(temperature) + "C");
-//     Serial.println("Temp: " + String(temperature) + "C");
-//     lcd.setCursor(0, 1);
-//     lcd.print("Humidity: " + String(humidity));
-//     Serial.println("Analogic temp: " + String(temperature));
- 
-//     humidity_prev_value = humidity;
-//     temp_prev_value = temperature;
-//   }
-
-  // for RGB leds 
-
-// }
