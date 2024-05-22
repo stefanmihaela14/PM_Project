@@ -31,8 +31,7 @@ int blinkCount = 0;
 // for third lights mode
 float maxValueForCold = 20;
 float minValueForMedium = 21;
-float maxValueForMedium = 30;
-float minValueForWarm = 31;
+float maxValueForMedium = 28;
 unsigned long startMillisJoc3;
 unsigned long currentMillisJoc3;
 
@@ -66,6 +65,8 @@ void send_data_to_register(uint8_t* reg_vals, int data_pin, int clock_pin) {
   }
 }
 
+
+void setLEDColor(int ledIndex, int red, int green, int blue);
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -83,6 +84,12 @@ void setup() {
   pinMode(A3, INPUT);
   dht.begin();
   Serial.begin(9600);
+
+  setLEDColor(1,1,1,1);
+  setLEDColor(2,1,1,1);
+  setLEDColor(3,1,1,1);
+
+
 }
 
 // Array of colors (R, G, B)
@@ -97,7 +104,7 @@ int colors[][3] = {
 };
 
 int colorCount = 7; // Number of colors in the array
-int delayTime = 2000; // Time to wait between color changes (milliseconds)
+int delayTime = 500; // Time to wait between color changes (milliseconds)
 
 // Function to set the color of the RGB LEDs
 void setLEDColor(int ledIndex, int red, int green, int blue) {
@@ -198,26 +205,131 @@ void lights_mode_3(float tempValue) {
     }
 }
 
+int lightsMode = 0;
+bool shouldLight = false;
+
+int hours = 0;
+int minutes = 0;
+int seconds = 0;
+
+bool alarmSet = false;
+int Ahours = 0;
+int Aminutes = 0;
+int Aseconds = 0;
+
+long lastUpdatedTime = 0;
+
+long alarmTime = 60000;
+long alarmStartTime;
+bool shouldStopAlarm = false;
+
+void takeUserInput() {
+
+  if (Serial.available()) {  // Avem input! yay
+    int command = Serial.read();
+
+    switch (command) {
+      case 'C':
+      Serial.print("Changing time.");
+      hours = Serial.parseInt(SKIP_NONE);
+      Serial.read();
+      minutes = Serial.parseInt(SKIP_NONE);
+      Serial.read();
+      seconds = Serial.parseInt(SKIP_NONE);
+      break;
+      case 'A':
+      alarmSet = true;
+      Serial.print("Changing alarm.");
+      Ahours = Serial.parseInt(SKIP_NONE);
+      Serial.read();
+      Aminutes = Serial.parseInt(SKIP_NONE);
+      Serial.read();
+      Aseconds = Serial.parseInt(SKIP_NONE);
+      break;
+      case 'R':
+      alarmSet = false;
+      break;
+      case 'M':
+      lightsMode = Serial.parseInt(SKIP_NONE) - 1;
+      case 'S':
+      shouldLight = false;
+      shouldStopAlarm = false;
+      break;
+    }
+  }
+}
+
 void loop() {
-
-  // lights_mode_1();
-  // lights_mode_2();
-
-  float humidity = dht.readHumidity();
+  takeUserInput();
+  long currTime = millis();
   float temperature = dht.readTemperature();
 
-  // lights_mode_3(temperature);
+  if (shouldStopAlarm && currTime - alarmStartTime >= alarmTime) {
+    shouldStopAlarm = false;
+    shouldLight = false;
+  }
 
-  if (humidity != humidity_prev_value || temperature != temp_prev_value) {
-    lcd.clear();
-    lcd.print("Temp: " + String(temperature) + "C");
-    Serial.println("Temp: " + String(temperature) + "C");
-    lcd.setCursor(0, 1);
-    lcd.print("Humidity: " + String(humidity));
-    Serial.println("Analogic temp: " + String(temperature));
+  if (shouldLight) {
+    switch(lightsMode) {
+      case 0:
+        lights_mode_1();
+      break;
+      case 1:
+        lights_mode_2();
+      break;
+      case 2:
+        lights_mode_3(temperature);
+      break;
+    }
+  } else {
+    setLEDColor(1,1,1,1);
+    setLEDColor(2,1,1,1);
+    setLEDColor(3,1,1,1);
+  }
 
-    humidity_prev_value = humidity;
+  bool shouldUpdateLCD = false;
+  
+  if (temperature != temp_prev_value) {
+    shouldUpdateLCD = true;
     temp_prev_value = temperature;
+  }
+
+  if (currTime - lastUpdatedTime > 1000) {
+    lastUpdatedTime = currTime;
+
+    seconds++;
+
+    if (seconds == 60) {
+      seconds = 0;
+      minutes++;
+    }
+    if (minutes == 60) {
+      minutes = 0;
+      hours++;
+    }
+    if (hours == 24) {
+      hours = 0;
+    }
+    shouldUpdateLCD = true;
+
+    if (alarmSet && hours == Ahours && minutes == Aminutes && seconds == Aseconds) {
+      shouldLight = true;
+      shouldStopAlarm = true;
+      alarmStartTime = currTime;
+    }
+  }
+
+  if (shouldUpdateLCD) {
+    lcd.clear();
+    lcd.setCursor(13, 0);
+    lcd.print(String((int)temperature) + "C");
+    lcd.setCursor(0, 0);
+    lcd.print("C " + String(hours) + ":" + String(minutes) + ":" + String(seconds));
+    if (alarmSet) {
+      lcd.setCursor(0, 1);
+      lcd.print("A " + String(Ahours) + ":" + String(Aminutes) + ":" + String(Aseconds));
+    }
+    shouldUpdateLCD = false;
   }
 
 }
