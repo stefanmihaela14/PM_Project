@@ -1,3 +1,6 @@
+#include <LiquidCrystal_I2C.h>
+#include "DHT.h"
+
 #define PIN_DATA_R1 A0
 #define PIN_CLOCK_R1 2
 #define PIN_LED_3_BLUE 3
@@ -13,6 +16,11 @@ uint8_t R1[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 
 #define LED_3_RED R1[6]
 #define LED_3_GREEN R1[7]
+
+// for temp sensor and LCD
+#define DHTPIN 7
+#define DHTTYPE DHT22
+#define DELAY_TIME 50
 
 // for first lights mode
 unsigned long startMillisJoc1;
@@ -31,20 +39,11 @@ int blinkCount = 0;
 // for third lights mode
 float maxValueForCold = 20;
 float minValueForMedium = 21;
-float maxValueForMedium = 28;
+float maxValueForMedium = 30;
 unsigned long startMillisJoc3;
 unsigned long currentMillisJoc3;
 
-
 // for temp sensor and LCD
-#include <LiquidCrystal_I2C.h>
-#include "DHT.h"
- 
-#define DHTPIN 7
-#define DHTTYPE DHT22
-#define DELAY_TIME 50
- 
-float humidity_prev_value = 0;
 float temp_prev_value = 0;
  
 LiquidCrystal_I2C lcd(0x3F,16,2); 
@@ -64,7 +63,6 @@ void send_data_to_register(uint8_t* reg_vals, int data_pin, int clock_pin) {
     delay(1);
   }
 }
-
 
 void setLEDColor(int ledIndex, int red, int green, int blue);
 void setup() {
@@ -89,7 +87,14 @@ void setup() {
   setLEDColor(2,1,1,1);
   setLEDColor(3,1,1,1);
 
+  sei();
+  TCCR2A = 1 << WGM21;  // CTC
+  TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20); // 1024 prescaler
+  OCR2A = 155;  // fintr = fclk / (N x (1 + OCrA))
+  TCNT2 = 0;
+  TIMSK2 = 1 << OCIE2A;  // intrerrupt on TCNT = OCRA
 
+  cli();
 }
 
 // Array of colors (R, G, B)
@@ -131,7 +136,6 @@ void setLEDColor(int ledIndex, int red, int green, int blue) {
 void lights_mode_1() {
     currentMillisJoc1 = millis();
     if (currentMillisJoc1 - startMillisJoc1 >= delayTime) {
-      Serial.println("Schimbare!");
       startMillisJoc1 = currentMillisJoc1;
 
       if (joc1PasLoop == 0) {
@@ -224,8 +228,7 @@ long alarmStartTime;
 bool shouldStopAlarm = false;
 
 void takeUserInput() {
-
-  if (Serial.available()) {  // Avem input! yay
+  if (Serial.available()) {
     int command = Serial.read();
 
     switch (command) {
@@ -257,6 +260,18 @@ void takeUserInput() {
       break;
     }
   }
+}
+
+int intrerrupt_counter = 0;
+
+ISR(TIMER2_COMPA_vect)  // triggers every 10 ms
+{
+    intrerrupt_counter++;
+
+    if (intrerrupt_counter == 100) {
+      intrerrupt_counter = 0;
+      seconds++;
+    }
 }
 
 void loop() {
@@ -297,17 +312,15 @@ void loop() {
   if (currTime - lastUpdatedTime > 1000) {
     lastUpdatedTime = currTime;
 
-    seconds++;
-
-    if (seconds == 60) {
-      seconds = 0;
+    if (seconds >= 60) {
+      seconds -= 60;
       minutes++;
     }
-    if (minutes == 60) {
+    if (minutes >= 60) {
       minutes = 0;
       hours++;
     }
-    if (hours == 24) {
+    if (hours >= 24) {
       hours = 0;
     }
     shouldUpdateLCD = true;
@@ -324,10 +337,10 @@ void loop() {
     lcd.setCursor(13, 0);
     lcd.print(String((int)temperature) + "C");
     lcd.setCursor(0, 0);
-    lcd.print("C " + String(hours) + ":" + String(minutes) + ":" + String(seconds));
+    lcd.print("C: " + String(hours) + ":" + String(minutes) + ":" + String(seconds));
     if (alarmSet) {
       lcd.setCursor(0, 1);
-      lcd.print("A " + String(Ahours) + ":" + String(Aminutes) + ":" + String(Aseconds));
+      lcd.print("Alarm: " + String(Ahours) + ":" + String(Aminutes) + ":" + String(Aseconds));
     }
     shouldUpdateLCD = false;
   }
