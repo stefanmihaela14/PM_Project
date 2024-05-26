@@ -254,6 +254,7 @@ void takeUserInput() {
       break;
       case 'M':
       lightsMode = Serial.parseInt(SKIP_NONE) - 1;
+      break;
       case 'S':
       shouldLight = false;
       shouldStopAlarm = false;
